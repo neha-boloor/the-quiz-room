@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.build/
+.quiz-data/
+.env
+.env.*
+!.env.example
+*.tar.gz
+*.log
+.openai/
+.DS_Store
+coverage/

@@ -1,0 +1,27 @@
+{
+  "name": "quiz-room",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prestart": "npm run build",
+    "start": "node server/start.js",
+    "predev": "npm run build",
+    "dev": "node server/start.js",
+    "setup": "node scripts/setup-local.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "format": "prettier --write client server shared worker scripts tests package.json README.md docs .prettierrc.json",
+    "format:check": "prettier --check client server shared worker scripts tests package.json README.md docs .prettierrc.json"
+  },
+  "dependencies": {
+    "qrcode-generator": "1.4.4",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.10"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
