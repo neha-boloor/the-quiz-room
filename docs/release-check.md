@@ -1,8 +1,8 @@
 # Release check
 
-This is the local version to test before publishing. The public release has not been pushed. Use the [README](../README.md) for setup, roles, CSV columns, and media locations.
+Use the [README](../README.md) for setup, roles, CSV columns, and media locations. This report records the release checks and a full party test you can run on your own network.
 
-The local `public-release` history has separate author commits for the original app and the later changes, using GitHub no-reply style addresses. GitHub account attribution still needs to be checked after connection; an address must match the one GitHub assigned to that contributor.
+The public history has separate author commits for the original app and later changes. GitHub links both to their contributor accounts. Commit metadata uses no-reply addresses rather than personal email addresses.
 
 ## Automated checks
 
