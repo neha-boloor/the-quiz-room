@@ -91,7 +91,8 @@ test('standalone HTTP + WebSocket party, private auth, media, restart and sessio
       200,
     );
     const id = w.decks[0].id;
-    let room = (await call('room/create', { deck: id }, { host: true })).data;
+    let room = (await call('room/create', { deck: id, title: 'Friday Quiz Night' }, { host: true }))
+      .data;
     const join = await call('room/' + room.id + '/join', {
       invite: room.join,
       name: 'Team Offline',
@@ -151,6 +152,11 @@ test('standalone HTTP + WebSocket party, private auth, media, restart and sessio
     await start();
     await login();
     assert.equal((await call('workspace', null, { host: true })).data.brand.title, 'Offline party');
+    const sessions = (await call('sessions', null, { host: true })).data;
+    assert.equal(sessions[0].title, 'Friday Quiz Night');
+    assert.equal(sessions[0].status, 'In progress');
+    assert.equal(sessions[0].teamCount, 1);
+    assert.equal((await call('room/create', { deck: id }, { host: true })).data.id, room.id);
     room = (await call(roomPath, null, { host: true })).data;
     assert.equal(room.teams[0].score, 40, 'scores survive process restart');
     assert.equal(

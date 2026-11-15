@@ -10,3 +10,4 @@ dist/
 .openai/
 .DS_Store
 coverage/
+personal-quiz/

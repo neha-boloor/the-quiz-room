@@ -8,6 +8,8 @@ The frontend and quiz API are shared by two adapters. The standalone Node server
 
 The authoring workspace stores deck definitions, theme settings and room index. Each room stores a frozen deck/theme snapshot, participant credentials, used tiles, queue, scores, ledger and processed command IDs. Uploaded media is stored separately. API updates retry conditional-write conflicts rather than dropping competing updates.
 
+The host session list reads each stored room to calculate its current status and team count. Reopening the app resumes an active room, preferring the one with joined teams if older data contains multiple open rooms. Concurrent attempts to start a quiz select one room through a conditional workspace update. Ending or expiring a room revokes guest access while retaining its result record; rooms are not automatically deleted.
+
 Only one local process may use a data directory. Network filesystems, multiple server replicas and power-loss durability guarantees are outside this adapter's scope. Stop the app before copying the entire data folder for a consistent full backup. Keep it private: it contains answer keys and active-room credentials.
 
 ## Authentication
@@ -20,7 +22,9 @@ The optional Sites adapter relies on the platform's trusted identity headers. It
 
 ## Realtime
 
-The local WebSocket `/live` endpoint carries authorization-checked invalidation messages, not public room snapshots or write commands. A connection must authenticate its first message with a valid room credential or a host cookie. The server rechecks access before notifying a connection, including expiry/replacement. The client fetches a role-safe snapshot on notification. Ordinary HTTPS/HTTP mutation requests enforce command IDs and role checks. Three-second local polling recovers missed events and disconnections.
+The local WebSocket `/live` endpoint carries authorization-checked invalidation messages, not public room snapshots or write commands. A connection must authenticate its first message with a valid room credential or a host cookie. The server rechecks access before notifying a connection, including expiry/replacement. The client fetches a role-safe snapshot on notification. Ordinary HTTPS/HTTP mutation requests enforce command IDs and role checks. Sub-second local polling and automatic socket reconnection recover missed events and disconnections.
+
+Question selection uses a readiness barrier. Each active team phone renders its armed state and acknowledges the current question epoch. Only after every active phone acknowledges does the server assign a future release timestamp. Phones and the TV estimate the server clock from their room response and unlock against that common timestamp; the server rejects buzzes before it. This keeps the question hidden during preparation and prevents a faster client from opening early.
 
 The queue reflects server commits. Wi-Fi and device delays can affect order; it does not prove physical finger-tap ordering. One accepted attempt per team per question prevents a team from re-buzzing after its incorrect attempt is removed from the queue.
 

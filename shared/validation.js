@@ -1,7 +1,7 @@
 import { fail } from './errors.js';
 export function theme(t) {
   const clean = {};
-  for (const k of ['name', 'title', 'tagline', 'logo', 'background', 'font'])
+  for (const k of ['name', 'title', 'tagline', 'logo', 'background', 'font', 'icon'])
     if (typeof t[k] === 'string' && t[k].length < 200) clean[k] = t[k];
   for (const k of ['accent', 'bg', 'surface', 'text'])
     if (/^#[0-9a-f]{6}$/i.test(t[k])) clean[k] = t[k];
@@ -20,6 +20,11 @@ export function validateDeck(d) {
     d.boards.length > 10
   )
     fail('Invalid deck');
+  if (
+    d.buzzerMedia !== undefined &&
+    (typeof d.buzzerMedia !== 'string' || d.buzzerMedia.length > 200)
+  )
+    fail('Invalid buzzer sound');
   for (const b of d.boards) {
     if (
       !Array.isArray(b.categories) ||
@@ -34,6 +39,14 @@ export function validateDeck(d) {
       b.questions.length > 48
     )
       fail('Invalid board');
+    for (const field of ['categoryIcons', 'categoryDescriptions'])
+      if (
+        b[field] !== undefined &&
+        (!Array.isArray(b[field]) ||
+          b[field].length !== b.categories.length ||
+          !b[field].every((value) => typeof value === 'string' && value.length < 1000))
+      )
+        fail('Invalid category guide');
     for (const q of b.questions) {
       if (
         !Number.isInteger(q.col) ||
@@ -47,7 +60,7 @@ export function validateDeck(d) {
         q.points > 10000
       )
         fail('Invalid question position/points');
-      for (const k of ['prompt', 'answer', 'hint', 'notes', 'media'])
+      for (const k of ['prompt', 'answer', 'hint', 'notes', 'media', 'answerMedia'])
         if (typeof (q[k] ?? '') !== 'string' || (q[k] ?? '').length > 8000)
           fail('Invalid question');
     }

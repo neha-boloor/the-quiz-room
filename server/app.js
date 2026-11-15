@@ -12,10 +12,16 @@ export async function createLocalApp({
   password,
   advertisedOrigin,
   ownerEmail = 'owner@quiz.local',
+  buzzerReleaseDelayMs,
 }) {
   const { record, accessCode } = await initializeHost(dataDirectory, { password });
   const bucket = new FileBucket(dataDirectory + '/objects');
-  const env = { BUCKET: bucket, OWNER_EMAIL: ownerEmail, LOCAL_MODE: true };
+  const env = {
+    BUCKET: bucket,
+    OWNER_EMAIL: ownerEmail,
+    LOCAL_MODE: true,
+    BUZZER_RELEASE_DELAY_MS: buzzerReleaseDelayMs,
+  };
   const sessions = new Map();
   const loginAttempts = new Map();
   const allowedHosts = new Set(['localhost', '127.0.0.1', '::1']);
@@ -44,18 +50,20 @@ export async function createLocalApp({
     return new Request(originFor(request) + '/api/room/' + roomId, { headers });
   };
   async function notify(roomId) {
-    for (const socket of sockets.clients) {
-      if (socket.roomId !== roomId || socket.readyState !== WebSocket.OPEN) continue;
-      const response = await worker.fetch(
-        safeRoomRequest(socket.request, roomId, socket.token, socket.guest),
-        env,
-      );
-      if (response.ok) socket.send(JSON.stringify({ type: 'refresh' }));
-      else {
-        socket.send(JSON.stringify({ type: 'expired' }));
-        socket.close(1008, 'Session unavailable');
-      }
-    }
+    await Promise.all(
+      [...sockets.clients].map(async (socket) => {
+        if (socket.roomId !== roomId || socket.readyState !== WebSocket.OPEN) return;
+        const response = await worker.fetch(
+          safeRoomRequest(socket.request, roomId, socket.token, socket.guest),
+          env,
+        );
+        if (response.ok) socket.send(JSON.stringify({ type: 'refresh' }));
+        else {
+          socket.send(JSON.stringify({ type: 'expired' }));
+          socket.close(1008, 'Session unavailable');
+        }
+      }),
+    );
   }
   const server = http.createServer(async (request, response) => {
     try {

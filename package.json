@@ -9,6 +9,8 @@
     "predev": "npm run build",
     "dev": "node server/start.js",
     "setup": "node scripts/setup-local.mjs",
+    "csv:import": "node scripts/deck-csv.mjs import",
+    "csv:export": "node scripts/deck-csv.mjs export",
     "test": "npm run build && node --test tests/*.test.mjs",
     "format": "prettier --write client server shared worker scripts tests package.json README.md docs .prettierrc.json",
     "format:check": "prettier --check client server shared worker scripts tests package.json README.md docs .prettierrc.json"

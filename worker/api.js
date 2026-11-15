@@ -2,6 +2,7 @@ import { fail } from '../shared/errors.js';
 import { presets, seed } from '../shared/seed.js';
 import { get, mutate } from '../shared/storage.js';
 import { theme, validateDeck } from '../shared/validation.js';
+import { deckFromCSV, deckMediaRefs } from '../shared/deck-csv.js';
 import { alive, auth, publicRoom, assetAllowed } from '../shared/room.js';
 const id = () => crypto.randomUUID();
 const token = () => id() + id();
@@ -9,6 +10,7 @@ export async function api(req, env) {
   const u = new URL(req.url),
     path = u.pathname;
   const bucket = env.BUCKET;
+  const releaseDelay = Math.max(50, Math.min(5000, Number(env.BUZZER_RELEASE_DELAY_MS) || 2500));
   if (!bucket) fail('Storage is not connected yet', 503);
   if (req.method !== 'GET' && req.headers.get('origin') && req.headers.get('origin') !== u.origin)
     fail('Cross-origin request denied', 403);
@@ -36,6 +38,7 @@ export async function api(req, env) {
     req.method !== 'POST' &&
     (path.endsWith('/save') ||
       path === '/api/upload' ||
+      path === '/api/deck/import' ||
       path === '/api/room/create' ||
       /^\/api\/room\/[\w-]+\/\w+$/.test(path))
   )
@@ -46,6 +49,27 @@ export async function api(req, env) {
   if (path === '/api/workspace') {
     needHost();
     return w;
+  }
+  if (path === '/api/sessions') {
+    needHost();
+    const now = Date.now();
+    return Promise.all(
+      w.rooms.map(async (entry) => {
+        const room = (await get(bucket, 'room/' + entry.id))?.data;
+        return {
+          ...entry,
+          status: !room
+            ? 'Unavailable'
+            : room.ended
+              ? 'Finished'
+              : room.expires <= now
+                ? 'Expired'
+                : 'In progress',
+          teamCount: room?.teams.length || 0,
+          expires: room?.expires || 0,
+        };
+      }),
+    );
   }
   if (path === '/api/workspace/save') {
     needHost();
@@ -64,6 +88,43 @@ export async function api(req, env) {
       }
     });
     return out.state;
+  }
+  if (path === '/api/deck/import') {
+    needHost();
+    if (typeof b.csv !== 'string' || b.csv.length > 2_000_000) fail('Choose a CSV under 2 MB');
+    let deck;
+    try {
+      deck = deckFromCSV(b.csv);
+    } catch (error) {
+      fail(error.message);
+    }
+    const files = b.media && typeof b.media === 'object' && !Array.isArray(b.media) ? b.media : {};
+    for (const ref of deckMediaRefs(deck)) {
+      const relative = ref.owner[ref.field];
+      if (
+        relative.startsWith('/') ||
+        relative.includes('\\') ||
+        relative.split('/').some((part) => !part || part === '.' || part === '..')
+      )
+        fail(`Invalid media path: ${relative}`);
+      const key = files[relative];
+      if (typeof key !== 'string' || !/^[0-9a-f-]{36}$/i.test(key))
+        fail(`Missing media file: ${relative}`);
+      const asset = await bucket.get('asset/' + key);
+      if (!asset) fail(`Missing uploaded media: ${relative}`);
+      const kind = asset.httpMetadata?.contentType?.split('/')[0];
+      if (!['image', 'audio', 'video'].includes(kind) || (ref.kind !== 'any' && kind !== ref.kind))
+        fail(`Unsupported media type: ${relative}`);
+      ref.owner[ref.field] = key;
+      if (ref.field === 'media' || ref.field === 'answerMedia')
+        ref.owner[ref.field === 'media' ? 'type' : 'answerType'] = kind;
+    }
+    validateDeck(deck);
+    await mutate(bucket, 'workspace', (state) => {
+      if (state.decks.length >= 60) fail('Workspace already has 60 decks');
+      state.decks.push(deck);
+    });
+    return { id: deck.id, title: deck.title };
   }
   if (path === '/api/upload') {
     needHost();
@@ -107,12 +168,27 @@ export async function api(req, env) {
     needHost();
     const d = w.decks.find((d) => d.id === b.deck);
     if (!d) fail('Choose a deck');
+    const staleRooms = new Set();
+    let activeRoom;
+    for (const entry of w.rooms) {
+      const existing = (await get(bucket, 'room/' + entry.id))?.data;
+      if (existing && !existing.ended && existing.expires > Date.now()) {
+        if (!activeRoom || existing.teams.length > activeRoom.teams.length) activeRoom = existing;
+      } else staleRooms.add(entry.id);
+    }
+    if (activeRoom) return activeRoom;
+    const title = typeof b.title === 'string' ? b.title.trim() : '';
+    if (title.length > 100) fail('Session name must be 100 characters or fewer');
     const r = {
       id: id(),
       rev: 0,
-      title: b.title || d.title,
+      title: title || d.title,
       deck: structuredClone(d),
-      theme: { ...w.brand, ...(d.theme || {}) },
+      theme: {
+        ...w.brand,
+        logo: d.theme?.logo || w.brand.logo,
+        background: d.theme?.background || w.brand.background,
+      },
       join: token(),
       stage: token(),
       teams: [],
@@ -130,15 +206,31 @@ export async function api(req, env) {
       current: null,
       reveal: false,
       hint: false,
+      scoreboard: false,
+      winnerReveal: false,
+      buzzerCheck: false,
+      arming: false,
+      readyTeams: [],
+      releaseAt: 0,
+      stageView: 'join',
       expires: Date.now() + 12 * 3600000,
     };
     await bucket.put('room/' + r.id, JSON.stringify(r), {
       onlyIf: new Headers({ 'If-None-Match': '*' }),
     });
-    await mutate(bucket, 'workspace', (s) =>
-      s.rooms.unshift({ id: r.id, title: r.title, group: d.group, time: Date.now() }),
-    );
-    return r;
+    const selected = await mutate(bucket, 'workspace', (state) => {
+      if (
+        state.activeRoomId &&
+        state.activeRoomExpires > Date.now() &&
+        !staleRooms.has(state.activeRoomId)
+      )
+        return state.activeRoomId;
+      state.activeRoomId = r.id;
+      state.activeRoomExpires = r.expires;
+      state.rooms.unshift({ id: r.id, title: r.title, group: d.group, time: Date.now() });
+      return r.id;
+    });
+    return selected.result === r.id ? r : (await get(bucket, 'room/' + selected.result)).data;
   }
   const m = path.match(/^\/api\/room\/([\w-]+)(?:\/(\w+))?$/);
   if (!m) fail('Not found', 404);
@@ -147,7 +239,7 @@ export async function api(req, env) {
   const rr = (await get(bucket, roomKey))?.data;
   if (!rr) fail('Room not found', 404);
   if (!action) {
-    if (host) return rr;
+    if (host) return { ...rr, serverNow: Date.now() };
     return publicRoom(rr, auth(rr, bearer));
   }
   if (action === 'join') {
@@ -191,10 +283,30 @@ export async function api(req, env) {
     if (typeof b.commandId !== 'string' || b.commandId.length > 100) fail('Command ID required');
     if (r.processed.includes(b.commandId)) return;
     const q = () => r.deck.boards.flatMap((b) => b.questions).find((q) => q.id === r.current);
-    if (action === 'buzz') {
+    if (action === 'ready') {
       const a = auth(r, bearer);
       if (a.role !== 'team') fail('Team required', 403);
-      if (!r.open || r.paused || b.epoch !== r.epoch || b.question !== r.current)
+      if (!r.arming || b.epoch !== r.epoch || b.question !== r.current)
+        fail('This buzzer is not being prepared', 409);
+      r.readyTeams ||= [];
+      if (!r.readyTeams.includes(a.team.id)) r.readyTeams.push(a.team.id);
+      const activeTeams = r.teams.filter((team) => team.token).map((team) => team.id);
+      if (activeTeams.every((teamId) => r.readyTeams.includes(teamId))) {
+        r.arming = false;
+        r.open = true;
+        r.releaseAt = Date.now() + releaseDelay;
+      }
+    } else if (action === 'buzz') {
+      const a = auth(r, bearer);
+      if (a.role !== 'team') fail('Team required', 403);
+      if (
+        !r.open ||
+        r.arming ||
+        Date.now() < (r.releaseAt || 0) ||
+        r.paused ||
+        b.epoch !== r.epoch ||
+        b.question !== r.current
+      )
         fail('Buzzers are closed', 409);
       if (!(r.attempts || []).includes(a.team.id)) {
         r.queue.push(a.team.id);
@@ -210,23 +322,41 @@ export async function api(req, env) {
           r.attempts = [];
           r.reveal = false;
           r.hint = false;
+          r.scoreboard = false;
+          r.winnerReveal = false;
+          r.buzzerCheck = false;
+          r.stageView = 'board';
           r.queue = [];
           r.open = false;
+          r.arming = true;
+          r.readyTeams = [];
+          r.releaseAt = 0;
+          r.paused = false;
           r.epoch++;
+          if (!r.teams.some((team) => team.token)) {
+            r.arming = false;
+            r.open = true;
+            r.releaseAt = Date.now() + releaseDelay;
+          }
           break;
         }
         case 'open':
           if (!q() || r.reveal) fail('Select an unanswered question first');
           r.open = true;
+          r.arming = false;
+          r.readyTeams = [];
+          r.releaseAt = Date.now();
           r.paused = false;
           r.epoch++;
           break;
         case 'close':
           r.open = false;
+          r.arming = false;
           break;
         case 'pause':
           r.paused = !r.paused;
           r.open = false;
+          r.arming = false;
           break;
         case 'lock':
           r.locked = !r.locked;
@@ -237,7 +367,9 @@ export async function api(req, env) {
         case 'reveal':
           r.reveal = true;
           r.open = false;
+          r.arming = false;
           if (r.current && !r.used.includes(r.current)) r.used.push(r.current);
+          r.queue = [];
           break;
         case 'hint':
           r.hint = true;
@@ -245,20 +377,122 @@ export async function api(req, env) {
         case 'back':
           r.current = null;
           r.open = false;
+          r.arming = false;
+          r.readyTeams = [];
+          r.releaseAt = 0;
           r.queue = [];
+          r.scoreboard = false;
+          r.winnerReveal = false;
+          r.buzzerCheck = false;
+          r.stageView = 'board';
           r.epoch++;
+          break;
+        case 'stage':
+          r.stageView = r.stageView === 'join' ? 'board' : 'join';
+          break;
+        case 'scoreboard':
+          r.scoreboard = !r.scoreboard;
+          r.winnerReveal = false;
+          r.buzzerCheck = false;
+          break;
+        case 'check':
+          if (b.mode === 'finish') {
+            r.buzzerCheck = false;
+            r.open = false;
+            r.arming = false;
+            r.readyTeams = [];
+            r.releaseAt = 0;
+            r.queue = [];
+            r.attempts = [];
+            r.stageView = 'board';
+            r.epoch++;
+            break;
+          }
+          if (!r.teams.length) fail('Wait for at least one team to join');
+          r.buzzerCheck = true;
+          r.current = null;
+          r.reveal = false;
+          r.hint = false;
+          r.scoreboard = false;
+          r.winnerReveal = false;
+          r.open = true;
+          r.arming = false;
+          r.readyTeams = [];
+          r.releaseAt = Date.now();
+          r.paused = false;
+          r.queue = [];
+          r.attempts = [];
+          r.stageView = 'board';
+          r.epoch++;
+          break;
+        case 'winner':
+          if (r.current) fail('Finish the current question before revealing the winner');
+          if (!r.teams.length) fail('Need at least one team to reveal a winner');
+          {
+            const questions = r.deck.boards.flatMap((board) => board.questions);
+            if (!questions.length || !questions.every((question) => r.used.includes(question.id)))
+              fail('Complete every board before revealing the winner');
+          }
+          r.winnerReveal = true;
+          r.buzzerCheck = false;
+          r.scoreboard = false;
+          r.open = false;
+          r.arming = false;
+          r.readyTeams = [];
+          r.releaseAt = 0;
+          r.locked = true;
+          r.stageView = 'board';
           break;
         case 'board':
           if (!r.deck.boards[b.board]) fail('Board not found');
           r.board = b.board;
           r.current = null;
           r.open = false;
+          r.arming = false;
+          r.readyTeams = [];
+          r.releaseAt = 0;
           r.queue = [];
+          r.winnerReveal = false;
+          r.buzzerCheck = false;
           r.epoch++;
           break;
         case 'next':
           r.queue.shift();
           break;
+        case 'resolve': {
+          const team = r.teams.find((t) => t.id === r.queue[0]);
+          if (!team) fail('Wait for a team to buzz');
+          if (!['correct', 'incorrect', 'noanswer'].includes(b.outcome)) fail('Invalid outcome');
+          const question = q();
+          if (!question) fail('Select a question first');
+          const delta =
+            b.outcome === 'correct'
+              ? question.points
+              : b.outcome === 'incorrect'
+                ? -question.points
+                : 0;
+          if (delta) {
+            team.score += delta;
+            r.ledger.push({
+              id: b.commandId,
+              team: team.id,
+              name: team.name,
+              delta,
+              host: email,
+              time: Date.now(),
+              reason: b.outcome === 'correct' ? 'Correct answer' : 'Incorrect answer',
+            });
+          }
+          r.queue.shift();
+          if (b.outcome === 'correct') {
+            r.reveal = true;
+            r.open = false;
+            r.arming = false;
+            r.queue = [];
+            if (!r.used.includes(question.id)) r.used.push(question.id);
+          }
+          break;
+        }
         case 'score': {
           const t = r.teams.find((t) => t.id === b.team);
           if (!t) fail('Team not found');
@@ -312,6 +546,7 @@ export async function api(req, env) {
         case 'end':
           r.ended = true;
           r.open = false;
+          r.arming = false;
           r.locked = true;
           r.join = '';
           r.stage = '';
@@ -324,5 +559,12 @@ export async function api(req, env) {
     r.processed.push(b.commandId);
     if (r.processed.length > 5000) r.processed.shift();
   });
+  if (action === 'end')
+    await mutate(bucket, 'workspace', (state) => {
+      if (state.activeRoomId === rr.id) {
+        state.activeRoomId = '';
+        state.activeRoomExpires = 0;
+      }
+    });
   return host ? out.state : publicRoom(out.state, auth(out.state, bearer));
 }

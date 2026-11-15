@@ -1,116 +1,117 @@
 # The Quiz Room
 
-A private, customizable quiz app for hosting friends at home. Create decks and category boards, customize the logo and backgrounds, show a question on the TV, and let one phone per team buzz and display its live score.
+Run a quiz night from your own computer. Put the board on a TV, let friends scan a QR code, and use one phone per team as a buzzer. The app stores decks, media, scores, and results on the host computer.
 
-**Everything runs locally:** authoring, themes, uploaded media, QR joining, buzz order, scoring, undo, the TV display, history and backups. No ChatGPT account, API key, cloud storage, paid service or subscription is needed for local use. Internet is needed to install dependencies initially; after installation, local play works with the internet disconnected while your home network remains available.
+![Hand-drawn female host beside a purple TV board titled The Quiz Room. Two teams share buzzer phones; one player raises a hand while the TV and lamp glow gently.](assets/quiz-party.gif)
 
-## Quick start
+A fresh install starts with a short practice deck and no sessions or uploaded assets. Existing hosts keep their own content in the Git-ignored `.quiz-data/` folder.
 
-Install **Node.js 22 or newer** (includes npm), then run:
+## Host your first quiz
+
+You need [Node.js 22 or newer](https://nodejs.org/) and a Wi-Fi network that lets the computer and phones reach each other.
 
 ```sh
 npm ci
 npm start
 ```
 
-Open **http://localhost:3000** on the host computer. On first start, the terminal prints a newly generated **host access code**. Enter it under **Host sign in**. Keep it private and share it only with your co-host. There are no default credentials.
+1. Open `http://localhost:3000` on the host computer. The first run prints a randomly generated **host access code** in the terminal. Save it privately and use it to sign in. No code is included in this repository.
+2. Choose one of the five themes in **Themes**: Midnight Quiz, Classic Light, Diwali Lights, Christmas Cheer, or India Tricolor. You can optionally upload a logo or background image. Save the theme.
+3. Create a question deck in the app, or select **Import CSV folder** and choose a folder containing `questions.csv` and its `media/` files.
+4. Select **Host quiz** and enter a session name. Open the TV display in another window and move it to your TV.
+5. Ask one captain per team to scan the QR code and enter a team name. Run the buzzer check, then start the board. Select questions, resolve buzzes, reveal answers, and award points from the host desk.
+6. Select **End quiz** when finished. The QR invitation and team access expire; the results stay in **Sessions**.
 
-Your decks, themes, media, scores and history are saved in `.quiz-data/`. Restarting the server keeps them. This directory is ignored by Git. The host login cookie expires after eight hours or when the server restarts; sign in again with the same access code.
+If you reopen the app or sign in from another tab, it resumes the session already in progress. **Sessions** shows its name, status, and number of joined teams. You can return to the same host desk; you do not need to ask teams to join a new room. Starting again while a session is active reuses that room. Guest access also expires after 12 hours if a session is left open; history is retained.
 
-To stop the server, press **Ctrl+C**. To run it again, use `npm start`.
+## Host and player screens
 
-## Join from team phones
+| Screen     | Who opens it                               | What it does                                                                                                                                 |
+| ---------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host desk  | The host, after signing in on the computer | Edits decks and themes, starts or resumes a named session, chooses questions, controls the TV, resolves buzzes, and manages scores.          |
+| TV display | The host, using **Open TV display**        | Shows the invitation QR, board, current question, revealed answer, and scoreboard. This link is private; the host opens it on the TV.        |
+| Team phone | One captain per team, using the QR         | Joins with a team name, checks the buzzer, buzzes when it opens, and sees the team's score. Players do not need the host code or an account. |
 
-1. Connect the computer and captain phones to the same reachable home Wi-Fi network.
-2. In the host app, create/edit a deck, save it, then select **Host quiz**.
-3. The QR in the private host desk uses your computer's **LAN IP address**, not `localhost`. Scan it with one phone per team.
-4. Enter a team name and join. No guest account or password is required.
-5. Open a question and choose **Open buzzers**. Accepted buzzes appear in the host queue. Only hosts can change points.
-6. **End quiz** expires the invitation and all team/display access. Results remain in private host history.
+If a captain reloads the same phone, their team session resumes. A new phone needs **Replace phone** at the host desk. Keep the TV and host tabs on the same running server and named session.
 
-A phone's `localhost` means the phone itself. The QR therefore needs an address such as `http://192.168.1.25:3000`. If auto-detection picks a VPN or the wrong network interface, provide the correct LAN origin:
+The QR uses the computer's network address. If it points to the wrong interface, start with your actual LAN address:
 
 ```sh
 QUIZ_PUBLIC_ORIGIN=http://192.168.1.25:3000 npm start
 ```
 
-Some guest Wi-Fi networks isolate devices. Allow the app's incoming connection in your computer's firewall and use a network that lets the phones reach the computer. No public tunnel or router port forwarding is needed. The computer must remain awake and the server must keep running.
+Replace the example address. A phone's `localhost` means the phone itself. Keep the computer awake and the server running during the party. No public tunnel or router port forwarding is needed.
 
-## Host a quiz
+## Make a question set
 
-- **Quiz decks:** create, duplicate, archive, restore, import or export decks. Each deck can have multiple boards.
-- **Deck editor:** rename categories, resize the grid, select a tile, and enter its question, answer, hint, host notes, point value and optional image/audio/video. Save the deck.
-- **Theme studio:** presets, logo/background uploads, colours, heading fonts, corner radius and background overlay. Save the household theme; a deck can choose a different preset.
-- **Host desk:** show the QR, lock joining, select questions, open/close buzzers, advance the queue, reveal hints/answers, and add/subtract/set scores. Undo records a compensating adjustment.
-- **Replace phone:** revoke the old captain. A new phone joins with the same team name and keeps the team's score.
-- **TV display:** open the read-only display in a separate window. Extend your desktop onto the TV; do not mirror private host answers onto it.
-- **Backups:** Settings → Export complete backup includes deck/theme definitions and referenced media. Restore imports that backup. Session history stays in the local data folder; back up that folder too for full recovery.
+You can edit a deck in the app: add boards, rename categories, choose a point tile, write a question and answer, and optionally add a hint, host note, image, audio clip, or video. Question and answer audio/video appear with playback controls. An optional MP3/WAV can replace the generated buzzer chime.
 
-The sample deck is practice content. Replace the repeated sample variants before running a real party.
+For a larger set, use [the example CSV](examples/quiz-template.csv). Keep its header unchanged and put any referenced files in a `media/` folder beside it:
 
-## Configuration
-
-The app reads environment variables directly. It **does not automatically load `.env` files**. Export values in your shell or prefix the command as below. `.env.example` documents the available names.
-
-| Variable             | Default                           | Purpose                                                                                     |
-| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
-| `PORT`               | `3000`                            | Local server port                                                                           |
-| `QUIZ_BIND`          | `0.0.0.0`                         | Listen on the home network; use `127.0.0.1` for computer-only access                        |
-| `QUIZ_PUBLIC_ORIGIN` | Detected LAN address              | Origin encoded into the guest QR                                                            |
-| `QUIZ_DATA_DIR`      | `.quiz-data/` in project root     | Persistent local data directory                                                             |
-| `QUIZ_HOST_PASSWORD` | Randomly generated on first setup | Optional initial host access code, minimum 12 characters; does not replace an existing code |
-
-For another port:
-
-```sh
-PORT=4000 npm start
+```text
+my-quiz/
+  questions.csv
+  media/
+    photo.png
+    music.mp3
+    buzzer.wav
 ```
 
-For an explicit initial access code:
+With the app running, select **Import CSV folder** in **Quiz decks** and choose the whole `my-quiz` folder. The app checks the CSV and uploads its media, then shows the new deck. To import from a terminal instead, stop the server and run:
+
+```sh
+npm run csv:import -- my-quiz/questions.csv
+npm start
+```
+
+Import adds a deck without replacing existing ones. A media cell contains a **relative path**, such as `media/photo.png`. The image or audio bytes live in that file, not inside the CSV. Keep the CSV and `media/` folder together when sharing a question set. Files may be up to 10 MB each. Supported types are PNG, JPG, WebP, MP3, WAV, MP4, and WebM.
+
+| Column                                  | Meaning                                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `Deck Title`                            | One deck title, repeated on every row.                                                                     |
+| `Board Number`, `Board Name`            | Board order from `1`, and its title; up to 10 boards.                                                      |
+| `Category Number`, `Category Name`      | Left-to-right order from `1`, and its heading; up to 8 categories per board.                               |
+| `Question Number`                       | Top-to-bottom position from `1`; up to 6 questions per category.                                           |
+| `Points`                                | Number from 0 to 10,000. Each horizontal row uses the same points across its categories.                   |
+| `Question`, `Answer`                    | Required text. Use CSV quotes for commas or line breaks. The answer stays private until revealed.          |
+| `Hint`, `Host Notes`                    | Optional; host notes are private.                                                                          |
+| `Question Media`, `Answer Media`        | Optional paths to an image, audio clip, or video.                                                          |
+| `Buzzer Sound`                          | Optional path to one MP3/WAV file, repeated on every row.                                                  |
+| `Logo`, `Background`                    | Optional paths to images, repeated on every row. These override the selected theme's images for this deck. |
+| `Category Icon`, `Category Description` | Optional host category cues, repeated within that category.                                                |
+
+All 18 columns must be present, even when optional cells are blank. Board, category, and question numbers start at 1 and have no gaps. A spreadsheet can export this format as CSV. The app checks the file and media before adding the deck.
+
+To export one of your saved decks with all its referenced assets:
+
+```sh
+npm run csv:export -- path/to/output-folder "Exact deck title"
+```
+
+This creates `questions.csv` and `media/`. Review any questions and images before sharing them. Your own themed question sets can be distributed separately from the app.
+
+## Local data and access
+
+The app saves decks, themes, media, scores, and history under `.quiz-data/`, which Git ignores. Keep it private: it contains answers and active session credentials. **Settings → Export complete backup** includes decks, themes, and referenced media. To back up game history too, stop the server and copy the entire `.quiz-data/` folder.
+
+The host code is randomly generated and stored only as a salted hash. To choose a private code on first setup, use at least 12 characters:
 
 ```sh
 QUIZ_HOST_PASSWORD='your-own-long-private-code' npm run setup
 npm start
 ```
 
-To reset a forgotten access code, **stop the server**, then run:
+To reset a forgotten code, stop the server, then run `npm run setup -- --reset` followed by `npm start`. A co-host can use the same code. Teams only use the QR invitation. Never commit or post a real host code.
+
+The local app uses HTTP on a trusted home network. Keep it off the public internet. It runs one server process per data folder. See [architecture and security details](docs/architecture.md). Environment settings are in [.env.example](.env.example); the app reads shell variables and does not load `.env` files automatically.
+
+Before inviting friends, follow the [end-to-end test checklist](docs/release-check.md). It covers the host, TV, phone, media, buzzer timing, and session resume.
+
+## Develop
 
 ```sh
-npm run setup -- --reset
-npm start
-```
-
-The new code is printed in that terminal. Restarting revokes old host cookies. Decks and results remain intact. Do not commit access codes or data files.
-
-## Development and verification
-
-```sh
-npm ci
-npm run dev
 npm test
 npm run format:check
 ```
 
-`npm run dev` builds and starts the same real local server; it does not bypass host authentication. Restart it after editing source. `npm start` builds before launching, so a clean checkout works without a separate manual build command.
-
-Tests cover authorization, concurrent buzzes/scores, idempotency, hidden answers, binary media, conditional-write conflicts, local HTTP/WebSocket updates, persistence across restart, phone replacement and immediate guest expiry. They create isolated temporary data directories and require no internet or cloud account.
-
-```text
-client/          Responsive studio, host, stage and captain UI
-server/          Local HTTP/WebSocket server, private login and file persistence
-shared/          Seed content, validation, storage contract and room projections
-worker/          Portable API and optional Sites entry
-scripts/         Build, setup, formatting and artifact validation
-tests/          Core API and standalone local integration tests
-docs/           Architecture and security notes
-```
-
-## Scope and limits
-
-- Local updates use authenticated WebSocket notifications with a three-second polling recovery path. The Sites edition uses one-second polling. Buzz commands always go to the server immediately; committed server order decides the queue.
-- Judge answers and award points manually. Automatic timers/marking, per-screen theme overrides, collaborative cursors and question-exposure warnings are not implemented.
-- Upload limit is 10 MB per file. No paid transcoding service is used.
-- Use **one server process per data directory**. This standalone edition is for a trusted home network, not an internet-facing hosting service.
-- Local HTTP is unencrypted. Use an app-specific access code, and do not expose the server through router forwarding. Login checks, private cookies, origin/host validation and separate participant credentials protect application roles, but do not encrypt your Wi-Fi traffic.
-
-The optional Sites deployment retains native ChatGPT identity and R2 storage. Local mode strips all client-supplied identity headers and uses its own private login. See [architecture](docs/architecture.md) for the separation.
+`npm start` builds and runs the local app. The code is available under the [MIT License](LICENSE). Your own questions and media remain yours to share separately.
