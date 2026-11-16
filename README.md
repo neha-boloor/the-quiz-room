@@ -131,4 +131,4 @@ npm run format:check
 
 `npm start` builds and runs the local app. The code is available under the [MIT License](LICENSE). Your own questions and media remain yours to share separately.
 
-Inspired by [KVIZZING by Kumar Varun](https://www.youtube.com/playlist?list=PLwXllhq0F5MnMQQFTmUAbzxt06qsttUCQ).
+Inspired by Kumar Varun's [Buzzing with KVizzing](https://www.youtube.com/playlist?list=PLwXllhq0F5Ml2JaY_Nid7jiLt0nFLfFJQ).
