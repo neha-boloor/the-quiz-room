@@ -1,6 +1,8 @@
 # The Quiz Room
 
-Bring a quiz night to your next party. The Quiz Room turns your computer into a host desk, your TV into a question board, and one phone per team into a buzzer. Friends join by scanning a QR code; the host chooses questions, reveals answers, and awards points.
+Here's a fun addition to your next party, for quiz masters and quiz enthusiasts alike. The Quiz Room turns your guests into friendly competitors and your evening into a proper quiz night at home.
+
+Prepare a question deck, run the quiz from your laptop, and show the board on your TV. Each team scans a QR code to turn one phone into a buzzer. From the host desk, you pick questions, see the buzz order, reveal answers, and hand out points.
 
 ![Hand-drawn female host beside a purple TV board titled The Quiz Room. Two teams share buzzer phones; one player raises a hand while the TV and lamp glow gently.](assets/quiz-party.gif)
 
@@ -128,3 +130,5 @@ npm run format:check
 ```
 
 `npm start` builds and runs the local app. The code is available under the [MIT License](LICENSE). Your own questions and media remain yours to share separately.
+
+Inspired by [KVIZZING by Kumar Varun](https://www.youtube.com/playlist?list=PLwXllhq0F5MnMQQFTmUAbzxt06qsttUCQ).
