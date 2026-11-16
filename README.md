@@ -14,9 +14,14 @@ Decks, media, scores, and results stay on the host computer. Players need no acc
 
 A fresh install starts with a short practice deck and no sessions or uploaded assets. Existing hosts keep their own content in the Git-ignored `.quiz-data/` folder.
 
-## Host your first quiz
+## Requirements
 
-You need [Node.js 22 or newer](https://nodejs.org/) and a Wi-Fi network that lets the computer and phones reach each other.
+- **Host:** A laptop with [Node.js 22 or newer](https://nodejs.org/). Run the app there and optionally connect a TV or projector for the board. `npm ci` installs the dependencies from `package-lock.json`.
+- **Teams:** One phone per team, on the same Wi-Fi network as the host laptop. Players scan the session QR code to use their browsers as buzzers; they need no account or app.
+- **Questions:** Use the included practice deck, build one in the app, or upload a CSV in the [example format](examples/quiz-template.csv) with any referenced media files.
+- **Host access:** The host signs in with a private code generated on first run or chosen during setup. Participants use the QR invitation, not the host code.
+
+## Host your first quiz
 
 ```sh
 npm ci
