@@ -1,8 +1,16 @@
 # The Quiz Room
 
-Run a quiz night from your own computer. Put the board on a TV, let friends scan a QR code, and use one phone per team as a buzzer. The app stores decks, media, scores, and results on the host computer.
+Bring a quiz night to your next party. The Quiz Room turns your computer into a host desk, your TV into a question board, and one phone per team into a buzzer. Friends join by scanning a QR code; the host chooses questions, reveals answers, and awards points.
 
 ![Hand-drawn female host beside a purple TV board titled The Quiz Room. Two teams share buzzer phones; one player raises a hand while the TV and lamp glow gently.](assets/quiz-party.gif)
+
+Decks, media, scores, and results stay on the host computer. Players need no account or app, and local hosting needs no cloud service.
+
+## What you can do
+
+- Build decks with boards, categories, point tiles, and optional images, audio, or video.
+- Choose a theme and optionally add your own logo, background, or buzzer sound.
+- Show the board, questions, answers, and scoreboard on a TV while teams buzz from their phones.
 
 A fresh install starts with a short practice deck and no sessions or uploaded assets. Existing hosts keep their own content in the Git-ignored `.quiz-data/` folder.
 
